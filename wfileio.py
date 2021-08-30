@@ -4,7 +4,7 @@ import pandas as pd
 import csv
 import re
 from scipy import interpolate
-		   
+
 
 import petites as petite
 
@@ -153,7 +153,7 @@ def get_weather(stcode, fpath):
 
     # End file_type if statement.
 
-						   
+
     locdata["loc"] = stcode
 
     if wdata is None:
@@ -177,10 +177,10 @@ def get_weather(stcode, fpath):
             freq='1H')
         wdata.index = date_index[
             ~((date_index.day == 29) & (date_index.month == 2))]
-		
+
         return wdata, locdata, header
 
-	
+
 
 def read_fin4(fpath):
 
@@ -213,9 +213,9 @@ def read_fin4(fpath):
                                    (temp_index.month == 2))]
 
     wdata = wdata.dropna(axis=1, how='all')
-	
+
     for col in wdata.columns:
-			
+
         wdata[col] = wdata[col].apply(
             lambda x: float(''.join(re.findall('[0-9.-]', x))))
 
@@ -230,7 +230,7 @@ def read_fin4(fpath):
     return wdata, locdata, header
 
 
-	
+
 # Number of days in each month.
 m_days = (31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31)
 
@@ -246,7 +246,7 @@ def day_of_year(month, day):
     return doy
 
 # End function day_of_year
-	
+
 
 
 def day_of_month(day):
@@ -345,7 +345,7 @@ def read_epw(fpath, epw_colnames=epw_colnames):
     return wdata, locdata, header
 
 # ----------- END read_epw function -----------
-	
+
 
 
 def read_espr(fpath):
@@ -377,7 +377,7 @@ def read_espr(fpath):
         clmdata = None
         locdata = None
         header = None
-        return clmdata, locdata, header        
+        return clmdata, locdata, header
 
     # Split the contents into a header and body.
     header = content[0:hlines]
@@ -482,7 +482,7 @@ def read_espr(fpath):
         # list to a numpy array.
         daydata = np.asarray([list(map(int, x)) for x in splitlist])
 
-        # Today"s time slice.
+        # Today's time slice.
         dayslice = range(dcount, dcount+24, 1)
 
         # This will split the day-month header line on the gaps.
@@ -542,8 +542,6 @@ def read_espr(fpath):
         idx[np.logical_not(duds)], dataout[np.logical_not(duds), 10],
         kind="nearest", fill_value="extrapolate")
     dataout[duds, 10] = int_func(idx[duds])
-
-    # import ipdb; ipdb.set_trace()
 
     dataout = np.concatenate((np.reshape(np.repeat(int(year), 8760),
                                          [-1, 1]), dataout), axis=1)
@@ -695,19 +693,19 @@ def give_weather(df, locdata, stcode, header,
         # Cut out the last new-line character since numpy savetxt
         # puts in a newline character after the header anyway.
         header[-1] = header[-1][:-1]
-													   
+
 
         # These columns will be replaced.
         epw_columns = ["tdb", "tdp", "rh", "ghi", "dni", "dhi", "wspd", "wdr"]
-		
-									   
+
+
         for col in epw_columns:
             epw_master.loc[:, col] = df[col].values
 
         # Replace the year of the master file.
         epw_master["year"] = year
-		
-																										  
+
+
 
         np.savetxt(filepath, df.values, fmt=epw_fmt,
                    delimiter=",", header="".join(header),
@@ -744,36 +742,36 @@ def give_weather(df, locdata, stcode, header,
             np.savetxt(openfile, df.values, fmt=fin_fmt,
                        delimiter=" ", header="".join(header),
                        comments="")
-									 
-							 
-							  
-							   
-								
-								
-								  
-		
-														 
-												   
-										 
-										   
-						   
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         # import ipdb; ipdb.set_trace()
-																								 
-																	 
-		
-																			
-												   
-				
-										   
-										
-					 
-												 
-				 
-																													  
-			
-										 
-							 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         if os.path.isfile(filepath):
             success = True
@@ -800,91 +798,91 @@ def give_weather(df, locdata, stcode, header,
 # ----------- End give_weather function. -----------
 
 
-						
-																							  
-								 
-
-																																  
-																   
-													  
-									  
-		
-							
-
-														 
-																		 
-
-														  
-														 
 
 
-																	  
-										   
-					
-						  
-	
-								
-												 
-									  
-																								 
-												
-							 
-							
-				 
-														  
-						
-																																					
-																						
-												   
-						
-									 
-																													
-								  
-							   
-																		
-							   
-			   
-								
-										   
-								  
-													   
-			
-								 
-																																				
-																																																															 
-			
-																  
-							   
-									   
-												
-									 
-							 
-																  
-																										 
-																													 
-				
-															  
-																  
-																					 
-																								 
-				
-			 
-								
-										  
-		
-											
-													   
-		
-							 
-														 
-										  
-		
-					  
-							 
-								   
-		 
-				
-		
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
