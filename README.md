@@ -18,7 +18,7 @@ The MATLAB/R scripts are based on the algorithms published in Parag's thesis. Wh
 
 This work derives from my PhD thesis at the Ecole Polytechnique Federale de Lausanne, EPFL (**Chapter 3**). The method is described in the following publications/references:
 
-1. P. Rastogi and M. Andersen, ‘Incorporating Climate Change Predictions in the Analysis of Weather-Based Uncertainty’, presented at the ASHRAE and IBPSA-USA Building Performance Modeling Conference, Salt Lake City, UT, USA, Aug. 2016, [Online]. Available: http://infoscience.epfl.ch/record/208743. 
+1. P. Rastogi and M. Andersen, ‘Incorporating Climate Change Predictions in the Analysis of Weather-Based Uncertainty’, presented at the ASHRAE and IBPSA-USA Building Performance Modeling Conference, Salt Lake City, UT, USA, Aug. 2016, [Online]. Available: https://infoscience.epfl.ch/record/218596. 
 
 >@inproceedings{rastogi2016incorporating,
 >  title={Incorporating Climate Change Predictions in the Analysis of Weather-Based Uncertainty},
