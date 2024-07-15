@@ -1,0 +1,8 @@
+.RData
+.Rhistory
+m-files/LogFiles/
+py-files/curr_scripts/.ipynb_checkpoints/
+py_files/__pycache__/
+py_files/.idea/
+SyntheticWeather.wiki/
+.DS_Store
