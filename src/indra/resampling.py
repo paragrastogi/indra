@@ -20,10 +20,10 @@ import pandas as pd
 from scipy.optimize import curve_fit
 from sklearn.preprocessing import StandardScaler
 
-import fourier
-from ts_models import select_models
+from . import fourier
+from .ts_models import select_models
 # Useful small functions like solarcleaner.
-import petites as petite
+from . import petites as petite
 
 # Number of variables resampled - TDB and RH.
 NUM_VARS = 2

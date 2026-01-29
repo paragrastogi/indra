@@ -10,6 +10,25 @@ This repository contains scripts to create synthetic weather time series from a 
 
 If you know your way around MATLAB or Python, go directly into either the folder `m-files` (MATLAB files) or the folder `py-files` (Python files). Most of the scripts explain themselves. **Sample Python commands** are <a href='https://github.com/paragrastogi/SyntheticWeather/wiki/Sample-Commands'>given here</a>.
 
+<h2>Repository layout (uv app)</h2>
+
+This repository uses a standard `src/` layout for the Python package.
+
+- `src/indra/`: application and core modules
+- `lib/`: helper scripts and installers (non-package utilities)
+
+To run the CLI with uv:
+
+```
+uv run indra --help
+```
+
+To run the legacy example script:
+
+```
+uv run python lib/vali.py
+```
+
 If you're interested in reading the methods used first, see the list of papers given below.
 
 <h2>The methods</h2>

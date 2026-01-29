@@ -1,7 +1,7 @@
 # This is an example call for indra.
 
 import argparse
-from indra import indra
+from indra.indra import indra
 
 # Define a parser.
 PARSER = argparse.ArgumentParser(

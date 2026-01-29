@@ -6,7 +6,7 @@ import re
 from scipy import interpolate
 
 
-import petites as petite
+from . import petites as petite
 
 """
 This file contains functions to:
