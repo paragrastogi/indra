@@ -315,6 +315,12 @@ def build_parser() -> argparse.ArgumentParser:
         "passing seed data (training or initalisation mode).",
     )
     parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to a config.toml file to run a config-driven batch.",
+    )
+    parser.add_argument(
         "--station_code",
         type=str,
         default="abc",
@@ -416,6 +422,26 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.config:
+        from pathlib import Path
+        from . import main as config_main
+
+        config_path = Path(args.config).resolve()
+        config = config_main.load_config(config_path)
+        config_main.run_from_config(config, config_path.parent)
+        return 0
+    else:
+        from pathlib import Path
+
+        default_config = Path("config.toml")
+        if default_config.exists():
+            from . import main as config_main
+
+            config_path = default_config.resolve()
+            config = config_main.load_config(config_path)
+            config_main.run_from_config(config, config_path.parent)
+            return 0
 
     train = bool(args.train)
     station_code = args.station_code.lower()

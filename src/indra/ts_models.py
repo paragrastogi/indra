@@ -8,7 +8,6 @@ from sys import stdout
 from itertools import product
 import numpy as np
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-# from tqdm import tqdm
 
 
 def select_models(arma_params, ts_in):

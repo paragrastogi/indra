@@ -1,0 +1,44 @@
+[run]
+n_samples = 1
+file_type = "epw"
+climate_change = false
+cc_scenario = "ssp585"
+epoch = [2051, 2060]
+arma_params = [2, 2, 1, 1, 24]
+bounds = [1, 99]
+
+[[stations]]
+[stations.run]
+station_code = "atl"
+store_path = "outputs/atlanta"
+output_template = "atlanta_syn_{sample:02d}.epw"
+[stations.paths]
+input_path = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData/Historical/USA_GA_Atlanta-Hartsfield-Jackson.Intl.AP/USA_GA_Atlanta-Hartsfield-Jackson.Intl.AP.722190_MY.2018.ISD.epw"
+cmip6_dir = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData/CMIP6/Atlanta"
+
+[[stations]]
+[stations.run]
+station_code = "gla"
+store_path = "outputs/glasgow"
+output_template = "glasgow_syn_{sample:02d}.epw"
+[stations.paths]
+input_path = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData/Historical/GBR_SCT_Glasgow.Intl.AP.031400/031400_MY.2018.epw"
+cmip6_dir = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData/CMIP6/Glasgow"
+
+[[stations]]
+[stations.run]
+station_code = "lon"
+store_path = "outputs/london"
+output_template = "london_syn_{sample:02d}.epw"
+[stations.paths]
+input_path = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData/Historical/GBR_ENG_London-Heathrow.Intl.AP/GBR_ENG_London-Heathrow.Intl.AP.037720_MY.2018.ISD.epw"
+cmip6_dir = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData/CMIP6/London"
+
+[[stations]]
+[stations.run]
+station_code = "iad"
+store_path = "outputs/washington"
+output_template = "washington_syn_{sample:02d}.epw"
+[stations.paths]
+input_path = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData/Historical/USA_VA_Dulles-Washington.Dulles.Intl.AP/USA_VA_Dulles-Washington.Dulles.Intl.AP.724030_MY.2018.ISD.epw"
+cmip6_dir = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData/CMIP6/Washington"

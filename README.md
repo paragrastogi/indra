@@ -23,6 +23,12 @@ To run the CLI with uv:
 uv run indra --help
 ```
 
+To run with a config file:
+
+```
+uv run indra --config config.toml
+```
+
 To run the legacy example script:
 
 ```

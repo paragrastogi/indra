@@ -12,8 +12,6 @@ in (Rastogi, 2016, EPFL).
 import pickle
 import copy
 
-from tqdm import tqdm
-
 import numpy as np
 import pandas as pd
 
@@ -161,7 +159,7 @@ def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
         cc_models = set(cc_data.index.get_level_values(0))
         xout = list()  # ([xy_train] * n_samples)
 
-        for model in tqdm(cc_models):
+        for model in cc_models:
 
             this_cc_out = cc_data.loc[model]
             gcm_years = np.unique(this_cc_out.index.year)
@@ -178,6 +176,9 @@ def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
 
                 if cctable.shape[0] < 365:
                     continue
+
+                if "tas" not in cctable and {"tasmax", "tasmin"}.issubset(cctable.columns):
+                    cctable["tas"] = (cctable["tasmax"] + cctable["tasmin"]) / 2.0
 
                 for nidx in range(0, n_samples):
 
@@ -197,27 +198,33 @@ def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
                     for idx, var in enumerate(cc_cols):
 
                         if var[0] == "rh":
-                            huss = cctable["huss"].values
-                            # Convert specific humifity to humidity ratio.
-                            w = -huss / (huss - 1)
+                            if {"huss", "tas", "ps"}.issubset(cctable.columns):
+                                huss = cctable["huss"].values
+                                # Convert specific humidity to humidity ratio.
+                                w = -huss / (huss - 1)
 
-                            # Convert humidity ratio (w) to
-                            # Relative Humidity (RH).
-                            rh = petite.w2rh(
-                                w, cctable["tas"].values,
-                                cctable["ps"].values)
-
-                            # Is there some way to replace the fourier fit at
-                            # a finer grain instead of repeating the daily
-                            # mean value 24 times?
-                            ccvar = np.repeat(rh, [24], axis=0)
+                                # Convert humidity ratio (w) to RH.
+                                rh = petite.w2rh(
+                                    w, cctable["tas"].values,
+                                    cctable["ps"].values)
+                                ccvar = np.repeat(rh, [24], axis=0)
+                            elif "hurs" in cctable.columns:
+                                ccvar = np.repeat(
+                                    cctable["hurs"].values, [24], axis=0)
+                            else:
+                                continue
 
                         elif var[0] == "tdb":
-                            ccvar = np.repeat(
-                                cctable[var[1]].values - 273.15, [24],
-                                axis=0)
+                            if "tas" in cctable.columns:
+                                ccvar = np.repeat(
+                                    cctable["tas"].values - 273.15, [24],
+                                    axis=0)
+                            else:
+                                continue
 
                         else:
+                            if var[1] not in cctable.columns:
+                                continue
                             ccvar = np.repeat(
                                 cctable[var[1]].values, [24], axis=0)
 
