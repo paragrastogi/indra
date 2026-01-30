@@ -6,3 +6,6 @@ py_files/__pycache__/
 py_files/.idea/
 SyntheticWeather.wiki/
 .DS_Store
+logs/
+logs/
+__pycache__
