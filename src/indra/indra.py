@@ -43,13 +43,14 @@ from . import wfileio as wf
 
 from .petites import setseed
 from . import resampling as resampling
+from .logging_utils import get_logger, setup_logger
 
 # Custom functions to calculate error metrics - not currently used.
 # import losses.
 # from losses import rmseloss
 # from losses import maeloss
 
-WEATHER_FMTS = ["espr", "epw", "csv", "fin4"]
+WEATHER_FMTS = ["epw", "csv", "tsv", "parquet"]
 
 
 def indra(train=False, station_code="abc", n_samples=10,
@@ -59,7 +60,13 @@ def indra(train=False, station_code="abc", n_samples=10,
           cc_scenario='rcp85', epoch=None,
           randseed=None, year=0, variant=0,
           arma_params=None,
-          bounds=None):
+          bounds=None,
+          arma_caps=None,
+          cache_models=False,
+          model_cache_path=None,
+          n_jobs=1,
+          logger=None):
+    logger = get_logger(logger)
 
     # Reassign defaults if incoming list params are None
     # (i.e., nothing passed.)
@@ -68,6 +75,10 @@ def indra(train=False, station_code="abc", n_samples=10,
 
     if bounds is None:
         bounds = [0.01, 99.9]
+
+    if arma_caps is not None:
+        for idx in range(min(4, len(arma_params))):
+            arma_params[idx] = min(arma_params[idx], arma_caps[idx])
 
     # ------------------
     # Some initialisation house work.
@@ -127,12 +138,12 @@ def indra(train=False, station_code="abc", n_samples=10,
 
         # Set the seed with either the input random seed or the one
         # assigned just before.
-        setseed(randseed)
+        setseed(randseed, logger=logger)
 
         # See accompanying script "wfileio".
         # try:
         if os.path.isfile(path_file_in):
-            xy_train, locdata, header = wf.get_weather(station_code, path_file_in)
+            xy_train, locdata, header = wf.get_weather(station_code, path_file_in, logger=logger)
 
         elif os.path.isdir(path_file_in):
 
@@ -146,15 +157,15 @@ def indra(train=False, station_code="abc", n_samples=10,
             xy_list = list()
 
             for file in list_wfiles:
-                xy_temp, locdata, header = wf.get_weather(station_code, file)
+                xy_temp, locdata, header = wf.get_weather(station_code, file, logger=logger)
                 xy_list.append(xy_temp)
 
             xy_train = pd.concat(xy_list, sort=False)
 
-        print("Successfully retrieved weather data.\r\n")
+        logger.info("Successfully retrieved weather data.")
 
         # Train the models.
-        print("Training the model. Go get a coffee or something...\r\n")
+        logger.info("Training the model. Go get a coffee or something...")
 
         if climate_change:
 
@@ -194,11 +205,20 @@ def indra(train=False, station_code="abc", n_samples=10,
 
         # Call resampling with null selmdl and ffit, since those
         # haven"t been trained yet.
+        cachepath = None
+        if model_cache_path:
+            cachepath = model_cache_path
+        elif cache_models:
+            cachepath = os.path.join(store_path, "model_cache.p")
+
         ffit, selmdl, _ = resampling.trainer(
             xy_train, n_samples=n_samples,
             picklepath=path_syn_save,
             arma_params=arma_params,
-            bounds=bounds, cc_data=cc_data)
+            bounds=bounds, cc_data=cc_data,
+            cachepath=cachepath, use_cache=cache_models,
+            n_jobs=n_jobs,
+            logger=logger)
 
         # The non-seasonal order of the model. This exists in both
         # ARIMA and SARIMAX models, so it has to exist in the output
@@ -237,9 +257,11 @@ def indra(train=False, station_code="abc", n_samples=10,
         # with open(path_counter_save, "wb") as open_file:
         pickle.dump(csave, open(path_counter_save, "wb"))
 
-        print(("I've saved the model for station '{0}'. "
-               "You can now ask me for samples in folder '{1}'."
-               "\r\n").format(station_code, store_path))
+        logger.info(
+            "I've saved the model for station '%s'. You can now ask me for samples in folder '%s'.",
+            station_code,
+            store_path,
+        )
 
     else:
 
@@ -258,21 +280,23 @@ def indra(train=False, station_code="abc", n_samples=10,
 
         if climate_change:
             sample = resampling.sampler(
-                picklepath=path_syn_save, year=year, n=variant)
+                picklepath=path_syn_save, year=year, n=variant, logger=logger)
 
         else:
             # Sample number has not exceeded number of samples.
             if csave['counter'] < csave['n_samples']:
                 sample = resampling.sampler(
-                    picklepath=path_syn_save, counter=csave['counter'])
+                    picklepath=path_syn_save, counter=csave['counter'], logger=logger)
                 csave['counter'] += 1
                 pickle.dump(csave, open(path_counter_save, "wb"))
             else:
-                print('You are asking me for more samples than I have.' +
-                      'You generated {:d} '.format(csave['n_samples']) +
-                      'samples, I have given you ' +
-                      '{:d} samples.'.format(csave['counter']))
-                print('Next call will restart from the first sample.')
+                logger.info(
+                    "You are asking me for more samples than I have. "
+                    "You generated %d samples, I have given you %d samples.",
+                    csave['n_samples'],
+                    csave['counter'],
+                )
+                logger.info("Next call will restart from the first sample.")
                 csave['counter'] = 0
                 pickle.dump(csave, open(path_counter_save, "wb"))
                 return
@@ -286,17 +310,20 @@ def indra(train=False, station_code="abc", n_samples=10,
         else:
             list_wfiles = [path_file_in]
 
-        _, locdata, header = wf.get_weather(            station_code, list_wfiles[0])
+        _, locdata, header = wf.get_weather(station_code, list_wfiles[0], logger=logger)
 
         # Save / write-out synthetic time series.
         wf.give_weather(sample, locdata, station_code, header,
                         file_type=file_type,
                         path_file_out=path_file_out,
-                        masterfile=list_wfiles[0])
+                        masterfile=list_wfiles[0],
+                        logger=logger)
+    logger.info("indra success")
 
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(logger=None) -> argparse.ArgumentParser:
+    logger = get_logger(logger)
     parser = argparse.ArgumentParser(
         description="This is INDRA, a generator of synthetic weather "
         "time series. This function both 'learns' the structure of data "
@@ -346,13 +373,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--file_type",
         type=str,
-        default="espr",
-        help=("What kind of input weather file are you giving me? Default "
-              "is the ESP-r ascii format [espr]. For now, I can read EPW "
-              "[epw] and ESP-r ascii files. If you pass a plain csv [csv] "
-              "or python pickle [py] file, it must contain a table with the "
-              "requisite data in the correct order. See file data_in_spec.txt "
-              "for the format."),
+        default="epw",
+        help=("What kind of input weather file are you giving me? "
+              "Supported inputs: epw, csv, tsv, parquet."),
     )
     # Indra needs the data to be a numpy nd-array arranged exactly so:
     # month, day of year, hour, tdb, tdp, rh, ghi, dni, dhi, wspd, wdr
@@ -416,31 +439,58 @@ def build_parser() -> argparse.ArgumentParser:
               "i.e., [a,b,c], WITHOUT SPACES. The defaults bounds are the "
               "1 and 99 percentiles, i.e., [1, 99]."),
     )
+    parser.add_argument(
+        "--arma_caps",
+        type=str,
+        default=None,
+        help=("Optional upper limits for ARMA search to speed up training. "
+              "Format: a,b,c,d corresponding to AR,MA,SAR,SMA."),
+    )
+    parser.add_argument(
+        "--cache_models",
+        type=int,
+        choices=[0, 1],
+        default=0,
+        help="Reuse cached fitted models if available and save cache.",
+    )
+    parser.add_argument(
+        "--model_cache_path",
+        type=str,
+        default=None,
+        help="Optional path for the model cache pickle.",
+    )
+    parser.add_argument(
+        "--n_jobs",
+        type=int,
+        default=1,
+        help="Number of worker threads for simulation (0 for auto).",
+    )
+    logger.info("build_parser success")
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, logger=None) -> int:
+    logger = logger or setup_logger()
+    parser = build_parser(logger=logger)
     args = parser.parse_args(argv)
 
     if args.config:
-        from pathlib import Path
         from . import main as config_main
 
-        config_path = Path(args.config).resolve()
-        config = config_main.load_config(config_path)
-        config_main.run_from_config(config, config_path.parent)
+        config_path = os.path.abspath(args.config)
+        config = config_main.load_config(config_path, logger=logger)
+        config_main.run_from_config(config, os.path.dirname(config_path), logger=logger)
+        logger.info("main success")
         return 0
     else:
-        from pathlib import Path
-
-        default_config = Path("config.toml")
-        if default_config.exists():
+        default_config = "config.toml"
+        if os.path.exists(default_config):
             from . import main as config_main
 
-            config_path = default_config.resolve()
-            config = config_main.load_config(config_path)
-            config_main.run_from_config(config, config_path.parent)
+            config_path = os.path.abspath(default_config)
+            config = config_main.load_config(config_path, logger=logger)
+            config_main.run_from_config(config, os.path.dirname(config_path), logger=logger)
+            logger.info("main success")
             return 0
 
     train = bool(args.train)
@@ -457,6 +507,10 @@ def main(argv: list[str] | None = None) -> int:
     arma_params = [int(x.strip("[").strip("]"))
                    for x in args.arma_params.split(",")]
     bounds = [float(x.strip("[").strip("]")) for x in args.bounds.split(",")]
+    arma_caps = None
+    if args.arma_caps:
+        arma_caps = [int(x.strip("[").strip("]"))
+                     for x in args.arma_caps.split(",")]
 
     if args.epochs is None and climate_change:
         epochs = [2051, 2060]
@@ -467,7 +521,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         epochs = None
 
-    print("\r\nInvoking indra for {0}.\r\n".format(station_code))
+    logger.info("Invoking indra for %s.", station_code)
 
     if store_path == "SyntheticWeather":
         store_path = store_path + "_" + station_code
@@ -482,7 +536,13 @@ def main(argv: list[str] | None = None) -> int:
           path_cc_file=path_cc_file,
           randseed=randseed,
           arma_params=arma_params,
-          bounds=bounds)
+          bounds=bounds,
+          arma_caps=arma_caps,
+          cache_models=bool(args.cache_models),
+          model_cache_path=args.model_cache_path,
+          n_jobs=args.n_jobs,
+          logger=logger)
+    logger.info("main success")
     return 0
 
 

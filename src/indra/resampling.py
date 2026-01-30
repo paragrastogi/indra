@@ -11,6 +11,7 @@ in (Rastogi, 2016, EPFL).
 
 import pickle
 import copy
+import os
 
 import numpy as np
 import pandas as pd
@@ -22,6 +23,7 @@ from . import fourier
 from .ts_models import select_models
 # Useful small functions like solarcleaner.
 from . import petites as petite
+from .logging_utils import get_logger
 
 # Number of variables resampled - TDB and RH.
 NUM_VARS = 2
@@ -51,8 +53,20 @@ cc_cols = [["tdb", "tas"], ["rh", None], ["atmpr", "ps"],
            ["wspd", "sfcWind"], ["ghi", "rsds"]]
 
 
-def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
+def trainer(
+    xy_train,
+    n_samples,
+    picklepath,
+    arma_params,
+    bounds,
+    cc_data,
+    cachepath=None,
+    use_cache=False,
+    n_jobs=1,
+    logger=None,
+):
     """Train the model with this function."""
+    logger = get_logger(logger)
 
     # Save a copy of all data to calculate quantiles later.
     xy_train_all = xy_train
@@ -81,20 +95,31 @@ def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
     x_calc_params = np.arange(0, xy_train_all.shape[0])
     x_fit_models = np.arange(0, STD_LEN_OUT)
 
-    # Fit fourier functions to the tdb and rh series.
+    ffit = None
+    selmdl = None
+    resid = None
 
-    # The curve_fit function outputs two things: parameters of the fit and
-    # the estimated covariance. We only use the first.
-    # Inputs are the function to fit (fourier in this case),
-    # xdata, and ydata.
-    # Use all the data available to calculate these parameters.
-    params = [curve_fit(fourier.fit_tdb, x_calc_params, xy_train_all['tdb']),
-              curve_fit(fourier.fit_rh, x_calc_params, xy_train_all['rh'])]
+    if use_cache and cachepath and os.path.exists(cachepath):
+        cached = pickle.load(open(cachepath, "rb"))
+        ffit = cached.get("ffit")
+        selmdl = cached.get("selmdl")
+        resid = cached.get("resid")
 
-    # Call the fourier fit function with the calculated
-    # parameters to get the values of the fourier fit at each time step
-    ffit = [fourier.fit('tdb', x_fit_models, *params[0][0]),
-            fourier.fit('rh', x_fit_models, *params[1][0])]
+    if ffit is None or selmdl is None or resid is None:
+        # Fit fourier functions to the tdb and rh series.
+
+        # The curve_fit function outputs two things: parameters of the fit and
+        # the estimated covariance. We only use the first.
+        # Inputs are the function to fit (fourier in this case),
+        # xdata, and ydata.
+        # Use all the data available to calculate these parameters.
+        params = [curve_fit(fourier.fit_tdb, x_calc_params, xy_train_all['tdb']),
+                  curve_fit(fourier.fit_rh, x_calc_params, xy_train_all['rh'])]
+
+        # Call the fourier fit function with the calculated
+        # parameters to get the values of the fourier fit at each time step
+        ffit = [fourier.fit('tdb', x_fit_models, *params[0][0], logger=logger),
+                fourier.fit('rh', x_fit_models, *params[1][0], logger=logger)]
 
     if cc_data is not None:
 
@@ -109,10 +134,10 @@ def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
                       xy_train_all['rh'])
             ]
 
-        ffit_cc = [fourier.fit('tdb_low', x_fit_models, *params_cc[0][0]),
-                   fourier.fit('tdb_high', x_fit_models, *params_cc[1][0]),
-                   fourier.fit('rh_low', x_fit_models, *params_cc[2][0]),
-                   fourier.fit('rh_high', x_fit_models, *params_cc[3][0])]
+        ffit_cc = [fourier.fit('tdb_low', x_fit_models, *params_cc[0][0], logger=logger),
+                   fourier.fit('tdb_high', x_fit_models, *params_cc[1][0], logger=logger),
+                   fourier.fit('rh_low', x_fit_models, *params_cc[2][0], logger=logger),
+                   fourier.fit('rh_high', x_fit_models, *params_cc[3][0], logger=logger)]
 
     # Now subtract the low- and high-frequency fourier fits
     # (whichever is applicable) from the raw values to get the
@@ -124,35 +149,57 @@ def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
                            axis=1)
     sans_means.index = xy_train.index
 
-    # Fit ARIMA models.
+    if selmdl is None or resid is None:
+        # Fit ARIMA models.
+        selmdl = list()
+        resid = np.zeros([sans_means["tdb"].shape[0], NUM_VARS])
 
-    selmdl = list()
-    resid = np.zeros([sans_means["tdb"].shape[0], NUM_VARS])
+        for idx, ser in enumerate(sans_means):
+            mdl_temp, resid[:, idx] = select_models(
+                arma_params, sans_means[ser], logger=logger)
+            selmdl.append(mdl_temp)
 
-    for idx, ser in enumerate(sans_means):
-        mdl_temp, resid[:, idx] = select_models(
-            arma_params, sans_means[ser])
-        selmdl.append(mdl_temp)
+        if cachepath:
+            pickle.dump(
+                {"ffit": ffit, "selmdl": selmdl, "resid": resid},
+                open(cachepath, "wb"),
+            )
 
-    print(("Done with fitting models to TDB and RH.\r\n"
-           "Simulating the learnt model to get synthetic noise series. "
-           "This might take some time.\r\n"))
+    logger.info(
+        "Done with fitting models to TDB and RH. Simulating the learnt model to get synthetic noise series."
+    )
 
     resampled = np.zeros([STD_LEN_OUT, NUM_VARS, n_samples])
 
+    if n_jobs is None or n_jobs < 1:
+        cpu_count = os.cpu_count() or 1
+        n_jobs = max(1, cpu_count // 2)
+
     for midx, mdl in enumerate(selmdl):
-        for sample_num in range(0, n_samples):
+        resid_mean = np.mean(resid[:, midx])
+        resid_std = np.std(resid[:, midx])
+
+        def _simulate_one(_: int) -> np.ndarray:
             resampled_temp = mdl.simulate(nsimulations=STD_LEN_OUT)
-            resampled[:, midx, sample_num] = ((resampled_temp-np.mean(resampled_temp))/np.std(resampled_temp))*np.std(resid) + np.mean(resid)
-        # End n for loop.
-    # End mdl for loop.
+            return ((resampled_temp - np.mean(resampled_temp)) / np.std(resampled_temp)) * resid_std + resid_mean
+
+        if n_jobs == 1 or n_samples == 1:
+            for sample_num in range(0, n_samples):
+                resampled[:, midx, sample_num] = _simulate_one(sample_num)
+        else:
+            from concurrent.futures import ThreadPoolExecutor
+
+            with ThreadPoolExecutor(max_workers=n_jobs) as executor:
+                results = list(executor.map(_simulate_one, range(n_samples)))
+            for sample_num, result in enumerate(results):
+                resampled[:, midx, sample_num] = result
 
     # Add the resampled time series back to the fourier series.
 
     if cc_data is None:
 
         xout = create_future_no_cc(
-            xy_train, sans_means, ffit, resampled, n_samples, bounds)
+            xy_train, sans_means, ffit, resampled, n_samples, bounds, logger=logger)
 
     else:
 
@@ -187,7 +234,7 @@ def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
                     future_index = pd.date_range(
                         start=str(future_year) + "-01-01 00:00:00",
                         end=str(future_year) + "-12-31 23:00:00",
-                        freq='1H')
+                        freq='1h')
                     # Remove leap days.
                     future_index = future_index[
                         ~((future_index.month == 2) &
@@ -259,7 +306,7 @@ def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
 
     # Calculate TDP.
 
-    xout = nearest_neighbour(xout, xy_train_all, 'tdb', 'ghi')
+    xout = nearest_neighbour(xout, xy_train_all, 'tdb', 'ghi', logger=logger)
     # xout = nearest_neighbour(xout, xy_train_all, 'tdb', 'wspd')
 
     # tdp = (np.asarray([x.loc[:, 'tdp'] for x in xout])).T
@@ -273,14 +320,16 @@ def trainer(xy_train, n_samples, picklepath, arma_params, bounds, cc_data):
 
     # Save the outputs as a pickle.
     pickle.dump(xout, open(picklepath, 'wb'))
+    logger.info("trainer success")
 
     # End nidx loop.
 
     return ffit, selmdl, xout
 
 
-def sampler(picklepath, year=0, n=0, counter=0):
+def sampler(picklepath, year=0, n=0, counter=0, logger=None):
     """Only opens the pickle of saved samples and returns ONE sample."""
+    logger = get_logger(logger)
 
     try:
 
@@ -300,14 +349,18 @@ def sampler(picklepath, year=0, n=0, counter=0):
 
     except AttributeError:
 
-        print("I could not open the pickle file with samples. " +
-              "Please check it exists at {0}.".format(picklepath))
+        logger.info(
+            "I could not open the pickle file with samples. Please check it exists at %s.",
+            picklepath,
+        )
         sample = None
 
+    logger.info("sampler success")
     return sample
 
 
-def create_future_no_cc(rec, sans_means, ffit, resampled, n_samples, bounds):
+def create_future_no_cc(rec, sans_means, ffit, resampled, n_samples, bounds, logger=None):
+    logger = get_logger(logger)
     # First make the xout array using all variables. Variables other
     # than RH and TDB are just repeated from the incoming files.
     xout = list()
@@ -348,7 +401,7 @@ def create_future_no_cc(rec, sans_means, ffit, resampled, n_samples, bounds):
                             index=pd.date_range(
                                 start="2223-01-01 00:00:00",
                                 end="2223-12-31 23:00:00",
-                                freq='1H'))
+                                freq='1h'))
 
             # Replace only var (tdb or rh).
             # Also send it to the quantile cleaner.
@@ -357,10 +410,12 @@ def create_future_no_cc(rec, sans_means, ffit, resampled, n_samples, bounds):
 
         xout.append(xout_temp)
 
+    logger.info("create_future_no_cc success")
     return xout
 
 
-def nearest_neighbour(syn, rec, basevar, othervar):
+def nearest_neighbour(syn, rec, basevar, othervar, logger=None):
+    logger = get_logger(logger)
 
     # Calculate daily means of temperature.
     mean_list = {basevar: list(), othervar: list()}
@@ -391,7 +446,7 @@ def nearest_neighbour(syn, rec, basevar, othervar):
 
     for this_month in range(1, 13):
 
-        print('Month ' + str(this_month))
+        logger.info("Month %s", this_month)
 
         # This month's indices.
         idx_this_month_rec = rec.index.month == this_month
@@ -446,7 +501,7 @@ def nearest_neighbour(syn, rec, basevar, othervar):
                 # Select only one of those.
                 nbours = nbours[np.random.randint(0, len(nbours), size=1)]
                 # Save it as an integer.
-                nearest_nbours.append(int(nbours))
+                nearest_nbours.append(int(nbours.item()))
 
             # Array to store the hourly samples.
             othervar_samples = np.zeros([len(nearest_nbours),
@@ -478,4 +533,5 @@ def nearest_neighbour(syn, rec, basevar, othervar):
 
     # End month loop.
 
+    logger.info("nearest_neighbour success")
     return syn

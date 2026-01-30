@@ -5,7 +5,10 @@ climate_change = false
 cc_scenario = "ssp585"
 epoch = [2051, 2060]
 arma_params = [2, 2, 1, 1, 24]
+arma_caps = [1, 1, 0, 0]
 bounds = [1, 99]
+cache_models = true
+n_jobs = 0
 
 [[stations]]
 [stations.run]

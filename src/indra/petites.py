@@ -9,35 +9,49 @@ Created on Fri Sep 29 15:30:34 2017
 import random
 
 import numpy as np
+
 # from scipy import interpolate
 import pandas as pd
 
 # Constants for Eq. 5, Temperature -200°C to 0°C.
-FROZEN_CONST = [-5.6745359 * 10**3, 6.3925247, -9.6778430 * 10**-3,
-                6.2215701 * 10**-7, 2.0747825 * 10**-9,
-                -9.4840240 * 10**-13, 4.1635019]
+FROZEN_CONST = [
+    -5.6745359 * 10**3,
+    6.3925247,
+    -9.6778430 * 10**-3,
+    6.2215701 * 10**-7,
+    2.0747825 * 10**-9,
+    -9.4840240 * 10**-13,
+    4.1635019,
+]
 
 # Constants for Eq. 6, Temperature 0°C to 200°C.
-LIQUID_CONST = [-5.8002206 * 10**3, 1.3914993, -4.8640239 * 10**-2,
-                4.1764768 * 10**-5, -1.4452093 * 10**-8, 6.5459673]
+LIQUID_CONST = [
+    -5.8002206 * 10**3,
+    1.3914993,
+    -4.8640239 * 10**-2,
+    4.1764768 * 10**-5,
+    -1.4452093 * 10**-8,
+    6.5459673,
+]
 
 
-def setseed(randseed):
-    '''Seed random number generators. Called as a function in main indra
-    script once and only once.'''
+def setseed(randseed, logger=None):
+    """Seed random number generators. Called as a function in main indra
+    script once and only once."""
 
     np.random.seed(randseed)
     random.seed = randseed
 
+
 # ----------- END setseed function. -----------
 
 
-def quantilecleaner(datain, xy_train, var, bounds=None):
-    '''Generic cleaner based on quantiles. Needs a time series / dataset
-       and cut-off quantiles. Also needs the name of the variable (var) in
-       the incoming dataframe. This function will censor the data outside
-       those quantiles and interpolate the missing values using linear
-       interpolation.'''
+def quantilecleaner(datain, xy_train, var, bounds=None, logger=None):
+    """Generic cleaner based on quantiles. Needs a time series / dataset
+    and cut-off quantiles. Also needs the name of the variable (var) in
+    the incoming dataframe. This function will censor the data outside
+    those quantiles and interpolate the missing values using linear
+    interpolation."""
 
     if bounds is None:
         bounds = [0.01, 99.9]
@@ -49,32 +63,35 @@ def quantilecleaner(datain, xy_train, var, bounds=None):
         idx_this_month_rec = xy_train.index.month == this_month
         idx_this_month_syn = datain.index.month == this_month
 
-        rec_quantiles = np.percentile(
-            xy_train[var].iloc[idx_this_month_rec], bounds)
+        rec_quantiles = np.percentile(xy_train[var].iloc[idx_this_month_rec], bounds)
 
         # import ipdb; ipdb.set_trace()
 
         dataout = dataout.mask(
             np.logical_and(
                 idx_this_month_syn,
-                np.squeeze(np.logical_or(dataout < rec_quantiles[0],
-                                         dataout > rec_quantiles[1]))),
-            other=np.NaN)
+                np.squeeze(
+                    np.logical_or(
+                        dataout < rec_quantiles[0], dataout > rec_quantiles[1]
+                    )
+                ),
+            ),
+            other=np.nan,
+        )
 
-        dataout = dataout.interpolate(
-            method='linear').fillna(method='bfill').fillna(method='ffill')
+        dataout = dataout.interpolate(method="linear").bfill().ffill()
 
     # Pass back values with only one dimension.
     return np.squeeze(dataout.values)
 
+
 # ----------- END quantilecleaner function. -----------
 
 
-def solarcleaner(datain, master):
-
-    '''Clean solar values by setting zeros at corresponding times in master
-       to zero in the synthetic data. This is a proxy for sunrise, sunset,
-       and twilight.'''
+def solarcleaner(datain, master, logger=None):
+    """Clean solar values by setting zeros at corresponding times in master
+    to zero in the synthetic data. This is a proxy for sunrise, sunset,
+    and twilight."""
 
     # Using the source data - check to see if there
     # should be sunlight at a given hour. If not,
@@ -89,28 +106,31 @@ def solarcleaner(datain, master):
     # A potential improvement would be to calculate sunrise and sunset
     # independently since that is an almost deterministic calculation.
 
+
 # ----------- END solarcleaner function. -----------
 
 
-def rhcleaner(rh):
-
-    '''RH values cannot be more than 100 or less than 0.'''
+def rhcleaner(rh, logger=None):
+    """RH values cannot be more than 100 or less than 0."""
 
     rhout = pd.DataFrame(rh)
 
-    rhout = rhout.mask(rhout >= 99, other=np.NaN).mask(
-        rhout <= 10, other=np.NaN).mask(
-        np.isnan(rhout), other=np.NaN)
+    rhout = (
+        rhout.mask(rhout >= 99, other=np.nan)
+        .mask(rhout <= 10, other=np.nan)
+        .mask(np.isnan(rhout), other=np.nan)
+    )
 
-    rhout = rhout.interpolate(method='linear')
-    rhout = rhout.fillna(method='bfill')
+    rhout = rhout.interpolate(method="linear")
+    rhout = rhout.bfill()
 
     return np.squeeze(rhout.values)
+
 
 # ----------- END rhcleaner function. -----------
 
 
-def tdpcleaner(tdp, tdb):
+def tdpcleaner(tdp, tdb, logger=None):
 
     if not isinstance(tdp, pd.DataFrame):
         tdpout = pd.DataFrame(tdp)
@@ -118,60 +138,62 @@ def tdpcleaner(tdp, tdb):
     else:
         tdpout = tdp
 
-    tdpout = tdpout.mask(np.squeeze(tdp) >= np.squeeze(tdb),
-                         other=np.NaN)
+    tdpout = tdpout.mask(np.squeeze(tdp) >= np.squeeze(tdb), other=np.nan)
     tdpout = tdpout.mask(
-        np.logical_or(np.squeeze(tdp) >= 50, np.squeeze(tdp) <= -50),
-        other=np.NaN)
+        np.logical_or(np.squeeze(tdp) >= 50, np.squeeze(tdp) <= -50), other=np.nan
+    )
 
-    if ((np.isnan(tdpout.values)).any()):
-        tdpout = tdpout.interpolate(method='linear')
-        tdpout = tdpout.fillna(method='bfill').fillna(method='ffill')
+    if (np.isnan(tdpout.values)).any():
+        tdpout = tdpout.interpolate(method="linear")
+        tdpout = tdpout.bfill().ffill()
 
     return np.squeeze(tdpout.values)
+
 
 # ----------- END rhcleaner function. -----------
 
 
-def wstats(datain, key, stat):
+def wstats(datain, key, stat, logger=None):
 
     grouped_data = datain.groupby(key)
 
-    if stat is 'mean':
+    if stat == "mean":
         dataout = grouped_data.mean()
-    elif stat is 'sum':
+    elif stat == "sum":
         dataout = grouped_data.sum()
-    elif stat is 'max':
+    elif stat == "max":
         dataout = grouped_data.max()
-    elif stat is 'min':
+    elif stat == "min":
         dataout = grouped_data.min()
-    elif stat is 'std':
+    elif stat == "std":
         dataout = grouped_data.std()
-    elif stat is 'q1':
+    elif stat == "q1":
         dataout = grouped_data.quantile(0.25)
-    elif stat is 'q3':
+    elif stat == "q3":
         dataout = grouped_data.quantile(0.75)
-    elif stat is 'med':
+    elif stat == "med":
         dataout = grouped_data.median()
+    else:
+        raise ValueError(f"Unknown statistic requested: {stat}")
 
     return dataout
+
 
 # ----------- END wstats function. -----------
 
 
-def calc_rh(tdb, tdp):
+def calc_rh(tdb, tdp, logger=None):
 
     rhout = 100 * (((112 - (0.1 * tdb) + tdp) / (112 + (0.9 * tdb))) ** 8)
     return rhcleaner(rhout)
 
 
-def calc_tdp(tdb, rh):
-
-    '''Calculate dew point temperature using dry bulb temperature
-       and relative humidity.'''
+def calc_tdp(tdb, rh, logger=None):
+    """Calculate dew point temperature using dry bulb temperature
+    and relative humidity."""
 
     # Change relative humidity to fraction.
-    phi = rh/100
+    phi = rh / 100
 
     # Remove weird values.
     phi[phi > 1] = 1
@@ -195,24 +217,30 @@ def calc_tdp(tdb, rh):
 
     # Eq. 5, pg 1.2
     lnp_ws[ice] = (
-        FROZEN_CONST[0]/tdb_k[ice] + FROZEN_CONST[1] +
-        FROZEN_CONST[2]*tdb_k[ice] + FROZEN_CONST[3]*tdb_k[ice]**2 +
-        FROZEN_CONST[4]*tdb_k[ice]**3 + FROZEN_CONST[5]*tdb_k[ice]**4 +
-        FROZEN_CONST[6]*np.log(tdb_k[ice]))
+        FROZEN_CONST[0] / tdb_k[ice]
+        + FROZEN_CONST[1]
+        + FROZEN_CONST[2] * tdb_k[ice]
+        + FROZEN_CONST[3] * tdb_k[ice] ** 2
+        + FROZEN_CONST[4] * tdb_k[ice] ** 3
+        + FROZEN_CONST[5] * tdb_k[ice] ** 4
+        + FROZEN_CONST[6] * np.log(tdb_k[ice])
+    )
 
     # Eq. 6, pg 1.2
     lnp_ws[np.logical_not(ice)] = (
-        LIQUID_CONST[0]/tdb_k[not_ice] + LIQUID_CONST[1] +
-        LIQUID_CONST[2]*tdb_k[not_ice] +
-        LIQUID_CONST[3]*tdb_k[not_ice]**2 +
-        LIQUID_CONST[4]*tdb_k[not_ice]**3 +
-        LIQUID_CONST[5]*np.log(tdb_k[not_ice]))
+        LIQUID_CONST[0] / tdb_k[not_ice]
+        + LIQUID_CONST[1]
+        + LIQUID_CONST[2] * tdb_k[not_ice]
+        + LIQUID_CONST[3] * tdb_k[not_ice] ** 2
+        + LIQUID_CONST[4] * tdb_k[not_ice] ** 3
+        + LIQUID_CONST[5] * np.log(tdb_k[not_ice])
+    )
 
     # Temperature in the above formulae must be absolute,
     # i.e. in Kelvin
 
     # Continuing from eqs. 5 and 6
-    p_ws = np.e**(lnp_ws)  # [Pa]
+    p_ws = np.e ** (lnp_ws)  # [Pa]
 
     # Eq. 24, pg 1.8
     p_w = (phi * p_ws) / 1000  # [kPa]
@@ -222,22 +250,24 @@ def calc_tdp(tdb, rh):
 
     p_w[p_w <= 0] = 1e-6
     alpha = pd.DataFrame(np.log(p_w))
-    alpha = alpha.replace(
-        [np.inf, -np.inf], np.NaN).interpolate(method='linear')
+    alpha = alpha.replace([np.inf, -np.inf], np.nan).interpolate(method="linear")
 
     # Eq. 39
     tdp = alpha.apply(
-        lambda x: EQ39_CONST[0] + EQ39_CONST[1]*x + EQ39_CONST[2]*(x**2) +
-        EQ39_CONST[3]*(x**3) + EQ39_CONST[4]*(p_w**0.1984))
+        lambda x: EQ39_CONST[0]
+        + EQ39_CONST[1] * x
+        + EQ39_CONST[2] * (x**2)
+        + EQ39_CONST[3] * (x**3)
+        + EQ39_CONST[4] * (p_w**0.1984)
+    )
 
     # Eq. 40, TDP less than 0°C and greater than -93°C
     tdp_ice = tdp < 0
-    tdp[tdp_ice] = 6.09 + 12.608*alpha[tdp_ice] + 0.4959*(alpha[tdp_ice]**2)
+    tdp[tdp_ice] = 6.09 + 12.608 * alpha[tdp_ice] + 0.4959 * (alpha[tdp_ice] ** 2)
 
-    tdp = tdp.replace(
-        [np.inf, -np.inf], np.NaN).interpolate(method='linear')
+    tdp = tdp.replace([np.inf, -np.inf], np.nan).interpolate(method="linear")
 
-    tdp = tdp.fillna(method='bfill').fillna(method='ffill')
+    tdp = tdp.bfill().ffill()
 
     # tdp = (tdp).rename('tdp')
 
@@ -245,10 +275,11 @@ def calc_tdp(tdb, rh):
 
     return tdp
 
+
 # ----------- END tdb2tdp function. -----------
 
 
-def w2rh(w, tdb, ps=101325):
+def w2rh(w, tdb, ps=101325, logger=None):
 
     if any(tdb < 200):
         tdb_k = tdb + 273.15
@@ -267,24 +298,30 @@ def w2rh(w, tdb, ps=101325):
 
     # Eq. 5, pg 1.2
     lnp_ws[ice] = (
-        FROZEN_CONST[0] / tdb_k[ice] + FROZEN_CONST[1] +
-        FROZEN_CONST[2] * tdb_k[ice] + FROZEN_CONST[3] * tdb_k[ice]**2 +
-        FROZEN_CONST[4] * tdb_k[ice]**3 + FROZEN_CONST[5] * tdb_k[ice]**4 +
-        FROZEN_CONST[6] * np.log(tdb_k[ice]))
+        FROZEN_CONST[0] / tdb_k[ice]
+        + FROZEN_CONST[1]
+        + FROZEN_CONST[2] * tdb_k[ice]
+        + FROZEN_CONST[3] * tdb_k[ice] ** 2
+        + FROZEN_CONST[4] * tdb_k[ice] ** 3
+        + FROZEN_CONST[5] * tdb_k[ice] ** 4
+        + FROZEN_CONST[6] * np.log(tdb_k[ice])
+    )
 
     # Eq. 6, pg 1.2
     lnp_ws[np.logical_not(ice)] = (
-        LIQUID_CONST[0] / tdb_k[not_ice] + LIQUID_CONST[1] +
-        LIQUID_CONST[2] * tdb_k[not_ice] +
-        LIQUID_CONST[3] * tdb_k[not_ice]**2 +
-        LIQUID_CONST[4] * tdb_k[not_ice]**3 +
-        LIQUID_CONST[5] * np.log(tdb_k[not_ice]))
+        LIQUID_CONST[0] / tdb_k[not_ice]
+        + LIQUID_CONST[1]
+        + LIQUID_CONST[2] * tdb_k[not_ice]
+        + LIQUID_CONST[3] * tdb_k[not_ice] ** 2
+        + LIQUID_CONST[4] * tdb_k[not_ice] ** 3
+        + LIQUID_CONST[5] * np.log(tdb_k[not_ice])
+    )
 
     # Temperature in the above formulae must be absolute,
     # i.e. in Kelvin
 
     # Continuing from eqs. 5 and 6
-    p_ws = np.e**(lnp_ws)  # [Pa]
+    p_ws = np.e ** (lnp_ws)  # [Pa]
 
     phi = p_w / p_ws  # [Pa] Formula(24), pg 1.8
 
@@ -293,19 +330,22 @@ def w2rh(w, tdb, ps=101325):
     # Relative Humidity from fraction to percentage.
     return rhcleaner(rh)
 
+
 # ----------- END w2rh function. -----------
 
 
-def remove_leap_day(df):
-    '''Removes leap day using time index.'''
+def remove_leap_day(df, logger=None):
+    """Removes leap day using time index."""
 
     return df[~((df.index.month == 2) & (df.index.day == 29))]
+
 
 # ----------- END remove_leap_day function. -----------
 
 
-def euclidean(x, y):
+def euclidean(x, y, logger=None):
 
     return np.sqrt((x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2)
+
 
 # ----------- END euclidean function. -----------

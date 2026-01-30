@@ -8,9 +8,11 @@ from sys import stdout
 from itertools import product
 import numpy as np
 from statsmodels.tsa.statespace.sarimax import SARIMAX
+from .logging_utils import get_logger
 
 
-def select_models(arma_params, ts_in):
+def select_models(arma_params, ts_in, logger=None):
+    logger = get_logger(logger)
 
     '''Select the most parsimonious SARMA model.'''
 
@@ -20,7 +22,7 @@ def select_models(arma_params, ts_in):
     # arma_params = [arp_ub, maq_ub, sarp_ub, smaq_ub, seasonality]
 
     aic_curr = 0
-    selaic = np.infty
+    selaic = np.inf
     mod_fit_curr = None
 
     counter = 0
@@ -30,7 +32,7 @@ def select_models(arma_params, ts_in):
 
     # Loop through all possible combinations of ar, ma, sar, and sma lags.
 
-    print("Iteration number: ")
+    logger.info("Iteration number:")
 
     for p, q, pp, qq in product(
             range(0, arma_params[0]+1), range(0, arma_params[1]+1),
@@ -68,10 +70,11 @@ def select_models(arma_params, ts_in):
             continue
 
         # Print out a heartbeat.
-        print("{0} ...".format(counter))
+        logger.info("%s ...", counter)
 
     # End p, q, pp, qq nested loops.
 
     resid = selmdl.resid
 
+    logger.info("select_models success")
     return selmdl, resid
