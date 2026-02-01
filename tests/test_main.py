@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import pytest
 
-import indra.main as indra_main
+import indra.config as indra_main
 
 
 DATA_ROOT = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData"

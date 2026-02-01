@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import indra.main as indra_main
+import indra.config as indra_main
 
 
 def test_run_from_config_multiple_stations(monkeypatch, tmp_path) -> None:

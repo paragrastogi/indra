@@ -86,6 +86,13 @@ def _derive_missing_humidity(df, logger=None):
         ps = df["atmpr"].values if "atmpr" in df.columns else 101325
         df["rh"] = petite.w2rh(df["w"].values, df["tdb"].values, ps=ps)
         df["tdp"] = petite.calc_tdp(df["tdb"].values, df["rh"].values)
+    if "rh" not in df.columns and "tdp" not in df.columns and "twb" in df.columns:
+        ps = df["atmpr"].values if "atmpr" in df.columns else 101325
+        df["rh"] = petite.twb2rh(df["tdb"].values, df["twb"].values, ps=ps)
+        df["tdp"] = petite.calc_tdp(df["tdb"].values, df["rh"].values)
+    if "rh" not in df.columns and "tdp" not in df.columns and "abs_hum" in df.columns:
+        df["rh"] = petite.abs_hum2rh(df["tdb"].values, df["abs_hum"].values)
+        df["tdp"] = petite.calc_tdp(df["tdb"].values, df["rh"].values)
     if "rh" not in df.columns or "tdp" not in df.columns:
         raise ValueError(
             "Unable to derive required humidity fields (tdp and rh) from provided inputs."
@@ -216,9 +223,9 @@ def give_weather(df, locdata, stcode, header,
             epw_master.loc[:, col] = df[col].astype(float).values
         epw_master["year"] = np.unique(df.index.year)[0]
         epw_fmt = (["%4u", "%2u", "%2u", "%2u", "%2u", "%44s"] +
-                   ((np.repeat("%5.2f", len(EPW_COLNAMES) - (6 + 3))).tolist()))
+                   (np.repeat("%5.2f", len(EPW_COLNAMES) - 6).tolist()))
         outfile = f"{filepath}.epw"
-        np.savetxt(outfile, df.values, fmt=epw_fmt,
+        np.savetxt(outfile, epw_master.values, fmt=epw_fmt,
                    delimiter=",", header="".join(header), comments="")
     elif file_type == "csv":
         outfile = f"{filepath}.csv"

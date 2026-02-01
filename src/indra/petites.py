@@ -331,6 +331,118 @@ def w2rh(w, tdb, ps=101325, logger=None):
     return rhcleaner(rh)
 
 
+def rh2w(tdb, rh, ps=101325, logger=None):
+    """Humidity ratio from dry bulb temperature and relative humidity."""
+    if any(tdb < 200):
+        tdb_k = tdb + 273.15
+    else:
+        tdb_k = tdb
+
+    ice = tdb_k <= 273.15
+    not_ice = np.logical_not(ice)
+    lnp_ws = np.zeros(tdb_k.shape)
+    lnp_ws[ice] = (
+        FROZEN_CONST[0] / tdb_k[ice]
+        + FROZEN_CONST[1]
+        + FROZEN_CONST[2] * tdb_k[ice]
+        + FROZEN_CONST[3] * tdb_k[ice] ** 2
+        + FROZEN_CONST[4] * tdb_k[ice] ** 3
+        + FROZEN_CONST[5] * tdb_k[ice] ** 4
+        + FROZEN_CONST[6] * np.log(tdb_k[ice])
+    )
+    lnp_ws[np.logical_not(ice)] = (
+        LIQUID_CONST[0] / tdb_k[not_ice]
+        + LIQUID_CONST[1]
+        + LIQUID_CONST[2] * tdb_k[not_ice]
+        + LIQUID_CONST[3] * tdb_k[not_ice] ** 2
+        + LIQUID_CONST[4] * tdb_k[not_ice] ** 3
+        + LIQUID_CONST[5] * np.log(tdb_k[not_ice])
+    )
+    p_ws = np.e ** (lnp_ws)  # [Pa]
+    phi = rh / 100
+    p_w = phi * p_ws
+    w = 0.621945 * p_w / (ps - p_w)
+    return w
+
+
+def twb2rh(tdb, twb, ps=101325, logger=None):
+    """Relative humidity from dry bulb and wet bulb (ASHRAE psychrometric equation)."""
+    # Ensure Celsius
+    if any(tdb > 200):
+        tdb_c = tdb - 273.15
+    else:
+        tdb_c = tdb
+    if any(twb > 200):
+        twb_c = twb - 273.15
+    else:
+        twb_c = twb
+
+    # Saturation vapor pressure at twb and tdb.
+    p_ws_twb = _p_ws_ashrae(twb_c)
+    p_ws_tdb = _p_ws_ashrae(tdb_c)
+
+    # Psychrometric constant (ASHRAE)
+    a = 0.00066 * (1 + 0.00115 * twb_c)
+    p_w = p_ws_twb - a * ps * (tdb_c - twb_c)
+    rh = 100 * (p_w / p_ws_tdb)
+    return rhcleaner(rh)
+
+
+def abs_hum2rh(tdb, abs_hum, ps=101325, logger=None):
+    """Relative humidity from absolute humidity (kg/m3) and dry bulb."""
+    if any(tdb < 200):
+        tdb_k = tdb + 273.15
+    else:
+        tdb_k = tdb
+    # Vapor pressure from absolute humidity: rho_v = p_w / (R_v * T)
+    r_v = 461.5  # J/(kg K)
+    p_w = abs_hum * r_v * tdb_k
+    p_ws = _p_ws_ashrae(tdb_k - 273.15)
+    rh = 100 * (p_w / p_ws)
+    return rhcleaner(rh)
+
+
+def rh2abs_hum(tdb, rh, logger=None):
+    """Absolute humidity (kg/m3) from dry bulb and RH."""
+    if any(tdb < 200):
+        tdb_k = tdb + 273.15
+    else:
+        tdb_k = tdb
+    p_ws = _p_ws_ashrae(tdb_k - 273.15)
+    p_w = (rh / 100) * p_ws
+    r_v = 461.5  # J/(kg K)
+    abs_hum = p_w / (r_v * tdb_k)
+    return abs_hum
+
+
+def _p_ws_ashrae(tdb_c):
+    """Saturation vapor pressure (Pa) using ASHRAE equations; tdb in C."""
+    if any(tdb_c < -273.15):
+        tdb_c = np.maximum(tdb_c, -273.15)
+    tdb_k = tdb_c + 273.15
+    ice = tdb_k <= 273.15
+    not_ice = np.logical_not(ice)
+    lnp_ws = np.zeros(tdb_k.shape)
+    lnp_ws[ice] = (
+        FROZEN_CONST[0] / tdb_k[ice]
+        + FROZEN_CONST[1]
+        + FROZEN_CONST[2] * tdb_k[ice]
+        + FROZEN_CONST[3] * tdb_k[ice] ** 2
+        + FROZEN_CONST[4] * tdb_k[ice] ** 3
+        + FROZEN_CONST[5] * tdb_k[ice] ** 4
+        + FROZEN_CONST[6] * np.log(tdb_k[ice])
+    )
+    lnp_ws[not_ice] = (
+        LIQUID_CONST[0] / tdb_k[not_ice]
+        + LIQUID_CONST[1]
+        + LIQUID_CONST[2] * tdb_k[not_ice]
+        + LIQUID_CONST[3] * tdb_k[not_ice] ** 2
+        + LIQUID_CONST[4] * tdb_k[not_ice] ** 3
+        + LIQUID_CONST[5] * np.log(tdb_k[not_ice])
+    )
+    return np.e ** (lnp_ws)
+
+
 # ----------- END w2rh function. -----------
 
 

@@ -180,7 +180,7 @@ def trainer(
         resid_std = np.std(resid[:, midx])
 
         def _simulate_one(_: int) -> np.ndarray:
-            resampled_temp = mdl.simulate(nsimulations=STD_LEN_OUT)
+            resampled_temp = mdl.simulate(nsimulations=STD_LEN_OUT, anchor="start")
             return ((resampled_temp - np.mean(resampled_temp)) / np.std(resampled_temp)) * resid_std + resid_mean
 
         if n_jobs == 1 or n_samples == 1:
