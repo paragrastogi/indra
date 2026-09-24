@@ -10,3 +10,8 @@ logs/
 logs/
 __pycache__
 outputs/
+
+# Data files stay out of git: keep them on SharePoint or regenerate them.
+*.parquet
+*.pickle
+*.pkl
