@@ -15,3 +15,6 @@ outputs/
 *.parquet
 *.pickle
 *.pkl
+
+# Local configuration
+.env

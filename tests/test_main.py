@@ -6,8 +6,9 @@ import pytest
 import indra.config as indra_main
 
 
-DATA_ROOT = "/Users/prastogi/Library/CloudStorage/OneDrive-Personal/ASHRAE/Handbook/2025/WeatherData"
-HISTORICAL = f"{DATA_ROOT}/Historical"
+# The weather-data root is machine-specific: set INDRA_WEATHER_DIR (see .env_example).
+DATA_ROOT = os.environ.get("INDRA_WEATHER_DIR", "")
+HISTORICAL = f"{DATA_ROOT}/Historical" if DATA_ROOT else ""
 
 STATIONS = {
     "Atlanta": "USA_GA_Atlanta-Hartsfield-Jackson.Intl.AP",
@@ -24,8 +25,8 @@ def _pick_epw(station_dir: str) -> str:
 
 
 def test_historical_epw_present() -> None:
-    if not os.path.exists(HISTORICAL):
-        pytest.skip("Historical data directory not available.")
+    if not HISTORICAL or not os.path.exists(HISTORICAL):
+        pytest.skip("Set INDRA_WEATHER_DIR to the weather-data folder.")
     for station_dir in STATIONS.values():
         station_path = f"{HISTORICAL}/{station_dir}"
         assert os.path.exists(station_path)
@@ -36,7 +37,7 @@ def test_historical_epw_present() -> None:
 def test_run_from_config(tmp_path) -> None:
     if os.environ.get("INDRA_RUN_INTEGRATION_TESTS") != "1":
         pytest.skip("Set INDRA_RUN_INTEGRATION_TESTS=1 to run integration test.")
-    if not os.path.exists(HISTORICAL):
+    if not HISTORICAL or not os.path.exists(HISTORICAL):
         pytest.skip("Historical data directory not available.")
 
     input_path = _pick_epw(f"{HISTORICAL}/{STATIONS['Atlanta']}")

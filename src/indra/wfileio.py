@@ -220,7 +220,9 @@ def give_weather(df, locdata, stcode, header,
         header[-1] = header[-1][:-1]
         epw_columns = ["tdb", "tdp", "rh", "ghi", "dni", "dhi", "wspd", "wdr"]
         for col in epw_columns:
-            epw_master.loc[:, col] = df[col].astype(float).values
+            # Replace the column rather than write into it: several are integers in the
+            # master file, and pandas 3 refuses to put floats into an integer column.
+            epw_master[col] = df[col].astype(float).values
         epw_master["year"] = np.unique(df.index.year)[0]
         epw_fmt = (["%4u", "%2u", "%2u", "%2u", "%2u", "%44s"] +
                    (np.repeat("%5.2f", len(EPW_COLNAMES) - 6).tolist()))

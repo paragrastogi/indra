@@ -97,7 +97,18 @@ def _normalize_runs(config: dict, logger=None) -> list[dict]:
 
 
 def _resolve_path(raw: str, config_dir: str, logger=None) -> str:
+    """Expand ~ and environment variables, then anchor relative paths at the config.
+
+    Machine-specific roots belong in the environment (see .env_example), so a
+    config such as "${INDRA_WEATHER_DIR}/Historical/..." works on any machine.
+    """
     logger = get_logger(logger)
+    raw = os.path.expanduser(os.path.expandvars(raw))
+    if "$" in raw:
+        raise ValueError(
+            f"Unset environment variable in path {raw!r}. "
+            "Copy .env_example to .env and run with `uv run --env-file .env`."
+        )
     if os.path.isabs(raw):
         resolved = os.path.abspath(raw)
     else:
@@ -106,13 +117,19 @@ def _resolve_path(raw: str, config_dir: str, logger=None) -> str:
     return resolved
 
 
+def run_indra(*args, **kwargs):
+    """Call indra.indra.indra. Imported here, not at the top: indra.indra imports this module."""
+    from .indra import indra
+
+    return indra(*args, **kwargs)
+
+
 def run_from_config(config: dict, config_dir: str, logger=None) -> list[str]:
     logger = get_logger(logger)
     global_start = time.time()
     outputs: list[str] = []
 
     for entry in _normalize_runs(config, logger=logger):
-        from .indra import indra as run_indra
         station_start = time.time()
         run_cfg = entry["run"]
         paths_cfg = entry["paths"]

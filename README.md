@@ -6,40 +6,33 @@ This repository contains scripts to create synthetic weather time series from a 
 
 <h2>Great, where do I begin?</h2>
 
-<strong>Please, please see the <a href='https://github.com/paragrastogi/SyntheticWeather/wiki'>wiki</a> first.</strong> I can't make you do it though, so yes, be your own boss. The wiki contains a step-by-step guide to installing and running mighty <b>indra</b>.
-
-If you know your way around MATLAB or Python, go directly into either the folder `m-files` (MATLAB files) or the folder `py-files` (Python files). Most of the scripts explain themselves. **Sample Python commands** are <a href='https://github.com/paragrastogi/SyntheticWeather/wiki/Sample-Commands'>given here</a>.
-
-<h2>Repository layout (uv app)</h2>
-
-This repository uses a standard `src/` layout for the Python package.
-
-- `src/indra/`: application and core modules
-- `lib/`: helper scripts and installers (non-package utilities)
-
-To run the CLI with uv:
+You need Python 3.14 and [uv](https://docs.astral.sh/uv/). From the repository root:
 
 ```
-uv run indra --help
+uv sync
 ```
 
-To run with a config file:
+**Tell indra where your weather data lives.** Copy `.env_example` to `.env` and set `INDRA_WEATHER_DIR` to the folder holding `Historical/` (one sub-folder of EPW files per station) and, for climate-change runs, `CMIP6/` (one sub-folder of daily projections per city). `.env` is not tracked, so each machine keeps its own.
+
+**Say what to generate in `config.toml`.** The `[run]` table sets the defaults: how many synthetic years (`n_samples`), the input format, the ARMA model orders, and whether to apply a climate-change scenario (`climate_change`, `cc_scenario`, `epoch`). Each `[[stations]]` block names a station, where its outputs go, and its input paths, written as `${INDRA_WEATHER_DIR}/...`. Relative paths are taken from the folder the config sits in.
+
+**Run it:**
 
 ```
-uv run indra --config config.toml
+uv run --env-file .env indra --config config.toml
 ```
 
-To run the legacy example script:
+indra learns a model from each station's record, then writes one synthetic weather file per sample into that station's `store_path`. `uv run indra --help` lists the options for a single run without a config file.
 
-```
-uv run python lib/vali.py
-```
+**Tests:** `uv run --env-file .env pytest`. The end-to-end test trains on the Atlanta record and writes one synthetic year, which takes about five minutes, so it only runs with `INDRA_RUN_INTEGRATION_TESTS=1` set.
+
+The package lives in `src/indra/`. `lib/` holds the legacy example (`uv run python lib/vali.py`) and the old installers.
 
 If you're interested in reading the methods used first, see the list of papers given below.
 
 <h2>The methods</h2>
 
-The MATLAB/R scripts are based on the algorithms published in Parag's thesis. While these scripts are well documented (in the two conference papers and thesis mentioned below), I won't be working on these any more. The Python scripts in the repository are translations of these original scripts. The method is an almost-completely-faithful translation of the MATLAB scripts<sup>(2)</sup>.
+The original MATLAB/R scripts implement the algorithms published in Parag's thesis. They are documented in the two conference papers and the thesis below, but they are not in this repository and I won't be working on them any more. The Python package here is a translation of them. The method is an almost-completely-faithful translation of the MATLAB scripts<sup>(2)</sup>.
 
 This work derives from my PhD thesis at the Ecole Polytechnique Federale de Lausanne, EPFL (**Chapter 3**). The method is described in the following publications/references:
 
@@ -75,7 +68,7 @@ This work derives from my PhD thesis at the Ecole Polytechnique Federale de Laus
 
 This tool is distributed under the GPLv3 license. Please read what this means <a href='https://en.wikipedia.org/wiki/GNU_General_Public_License'>here</a>.
 
-Using the older scripts requires only a valid MATLAB license and R (R is free to download and reuse). While you are free to use the scripts as you please, I am not liable for anything that happens as a result of using my scripts. Like if you accidentally release nuclear missiles, ruin the ski season in Switzerland, or cause a drought in Scotland.
+The Python package needs only free software. While you are free to use the scripts as you please, I am not liable for anything that happens as a result of using my scripts. Like if you accidentally release nuclear missiles, ruin the ski season in Switzerland, or cause a drought in Scotland.
 
 <h2>Citation</h2>
 
